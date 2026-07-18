@@ -61,7 +61,7 @@
     min-height:280px;
   }
 
-  .circle-wrap{ position:relative; width:min(56vw,240px); height:min(56vw,240px); display:flex; align-items:center; justify-content:center; margin-bottom:26px;}
+  .circle-wrap{ position:relative; width:min(62vw,260px); height:min(62vw,260px); display:flex; align-items:center; justify-content:center; margin-bottom:26px;}
   .ring{ position:absolute; border-radius:50%; border:1px solid var(--calm); opacity:0.35; }
   .ring1{ inset:0; }
   .ring2{ inset:14px; }
@@ -82,10 +82,9 @@
   @keyframes breathe2{ 0%,100%{transform:scale(1);opacity:0.3;} 50%{transform:scale(1.04);opacity:0.55;} }
   @keyframes breathe3{ 0%,100%{transform:scale(1);opacity:0.35;} 50%{transform:scale(1.03);opacity:0.6;} }
 
-  .track-title{ font-family:var(--serif); font-size:1.3rem; text-align:center; max-width:90vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-bottom:4px;}
-  .track-sub{ color:var(--muted); font-size:0.9rem; margin-bottom:18px; }
+  .track-sub{ font-family:var(--serif); font-size:1.25rem; color:var(--ink); margin-bottom:16px; text-align:center; }
 
-  .progress-row{ width:100%; max-width:420px; display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+  .progress-row{ width:100%; max-width:420px; display:flex; align-items:center; gap:10px; margin-bottom:6px; }
   .progress-row span{ font-size:0.78rem; color:var(--muted); width:38px; text-align:center; }
   input[type=range]{
     -webkit-appearance:none; appearance:none; flex:1; height:6px; border-radius:3px;
@@ -100,20 +99,7 @@
   }
   input[type=range]::-webkit-slider-runnable-track{ height:6px; border-radius:3px; background:var(--calm-soft); }
 
-  .controls{ display:flex; align-items:center; justify-content:center; gap:26px; margin:14px 0 20px; }
-  .ctrl-btn{
-    background:none; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center;
-    color:var(--ink); padding:8px;
-  }
-  .ctrl-btn svg{ width:30px; height:30px; fill:var(--ink); }
-  .ctrl-btn.play-pause{
-    width:70px; height:70px; border-radius:50%; background:var(--ink); box-shadow:0 4px 14px rgba(37,56,51,0.3);
-  }
-  .ctrl-btn.play-pause svg{ width:28px; height:28px; fill:#fff; }
-  .ctrl-btn:active{ transform:scale(0.92); }
-
-  .volume-row{ display:flex; align-items:center; gap:10px; width:100%; max-width:280px; margin-bottom:6px; }
-  .volume-row svg{ width:18px; height:18px; fill:var(--muted); flex-shrink:0; }
+  .total-time-row{ font-size:0.78rem; color:var(--muted); margin-bottom:22px; }
 
   /* playlist */
   .playlist-toggle{
@@ -274,7 +260,6 @@
           <svg id="circleIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
         </button>
       </div>
-      <div class="track-title" id="trackTitle">—</div>
       <div class="track-sub" id="trackSub">Seleziona un brano</div>
 
       <div class="progress-row">
@@ -283,22 +268,7 @@
         <span id="durTime">0:00</span>
       </div>
 
-      <div class="controls">
-        <button class="ctrl-btn" id="btnPrev" aria-label="Precedente">
-          <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
-        </button>
-        <button class="ctrl-btn play-pause" id="btnPlayPause" aria-label="Play/Pausa">
-          <svg id="ppIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-        </button>
-        <button class="ctrl-btn" id="btnNext" aria-label="Successivo">
-          <svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 6l8.5 6L6 18z"/></svg>
-        </button>
-      </div>
-
-      <div class="volume-row">
-        <svg viewBox="0 0 24 24"><path d="M3 10v4h4l5 5V5L7 10H3z"/></svg>
-        <input type="range" id="volBar" min="0" max="100" value="80">
-      </div>
+      <div class="total-time-row" id="totalTimeRow">Playlist: <span id="totalCur">0:00</span> di <span id="totalAll">0:00</span></div>
 
       <button class="playlist-toggle" id="playlistToggle">
         <span id="playlistCount">Playlist</span>
@@ -465,6 +435,8 @@
   let objectUrl = null;
   let playedThisSession = new Set();
   let selectedMood = null;
+  let durations = [];      // duration in seconds per playlist item, parallel to `playlist`
+  let totalPlaylistDuration = 0;
 
   const audio = new Audio();
   audio.preload = "metadata";
@@ -474,17 +446,17 @@
   const emptyState = $("emptyState");
   const playerScreen = $("playerScreen");
   const circleWrap = $("circleWrap");
-  const trackTitle = $("trackTitle");
   const trackSub = $("trackSub");
   const seekBar = $("seekBar");
   const curTime = $("curTime");
   const durTime = $("durTime");
+  const totalCur = $("totalCur");
+  const totalAll = $("totalAll");
   const ppIcon = $("ppIcon");
   const circleIcon = $("circleIcon");
   const playlistToggle = $("playlistToggle");
   const playlistPanel = $("playlistPanel");
   const playlistCount = $("playlistCount");
-  const volBar = $("volBar");
   const fileInput = $("fileInput");
   const toast = $("toast");
 
@@ -523,7 +495,42 @@
       emptyState.style.display = "none";
       playerScreen.style.display = "flex";
       renderPlaylistPanel();
+      computeDurations();
     }
+  }
+
+  /* ---- playlist total duration (for the "Playlist: x di y" readout) ---- */
+  function getDuration(blob){
+    return new Promise((resolve)=>{
+      const url = URL.createObjectURL(blob);
+      const probe = new Audio();
+      probe.preload = "metadata";
+      probe.src = url;
+      const done = (val)=>{ URL.revokeObjectURL(url); resolve(val); };
+      probe.addEventListener("loadedmetadata", ()=> done(isFinite(probe.duration) ? probe.duration : 0));
+      probe.addEventListener("error", ()=> done(0));
+    });
+  }
+
+  async function computeDurations(){
+    const snapshot = playlist;
+    const results = await Promise.all(snapshot.map(s => getDuration(s.blob)));
+    if(playlist !== snapshot) return; // playlist changed meanwhile, discard stale result
+    durations = results;
+    totalPlaylistDuration = durations.reduce((a,b)=>a+b,0);
+    updateTotalTimeDisplay();
+  }
+
+  function elapsedInPlaylist(){
+    let elapsed = 0;
+    for(let i=0; i<currentIndex; i++){ elapsed += durations[i] || 0; }
+    if(currentIndex >= 0 && isFinite(audio.currentTime)) elapsed += audio.currentTime;
+    return elapsed;
+  }
+
+  function updateTotalTimeDisplay(){
+    totalAll.textContent = fmtTime(totalPlaylistDuration);
+    totalCur.textContent = fmtTime(elapsedInPlaylist());
   }
 
   /* ================= Playback ================= */
@@ -534,9 +541,9 @@
     if(objectUrl) URL.revokeObjectURL(objectUrl);
     objectUrl = URL.createObjectURL(song.blob);
     audio.src = objectUrl;
-    trackTitle.textContent = song.name;
     trackSub.textContent = "Brano " + (idx+1) + " di " + playlist.length;
     renderPlaylistPanel();
+    updateTotalTimeDisplay();
     if(autoplay){ audio.play().catch(()=>{}); }
   }
 
@@ -550,11 +557,6 @@
     if(playlist.length === 0) return;
     const next = (currentIndex + 1) % playlist.length;
     loadTrack(next, true);
-  }
-  function playPrev(){
-    if(playlist.length === 0) return;
-    const prev = (currentIndex - 1 + playlist.length) % playlist.length;
-    loadTrack(prev, true);
   }
 
   audio.addEventListener("play", ()=>{
@@ -577,6 +579,7 @@
     seekBar.value = (audio.currentTime / audio.duration) * 100 || 0;
     curTime.textContent = fmtTime(audio.currentTime);
     durTime.textContent = fmtTime(audio.duration);
+    totalCur.textContent = fmtTime(elapsedInPlaylist());
   });
   audio.addEventListener("loadedmetadata", ()=>{
     durTime.textContent = fmtTime(audio.duration);
@@ -586,15 +589,8 @@
     if(!isFinite(audio.duration)) return;
     audio.currentTime = (seekBar.value/100) * audio.duration;
   });
-  volBar.addEventListener("input", ()=>{
-    audio.volume = volBar.value/100;
-  });
-  audio.volume = 0.8;
 
-  $("btnPlayPause").addEventListener("click", togglePlay);
   $("btnPlayCircle").addEventListener("click", togglePlay);
-  $("btnNext").addEventListener("click", playNext);
-  $("btnPrev").addEventListener("click", playPrev);
 
   playlistToggle.addEventListener("click", ()=>{
     playlistPanel.classList.toggle("open");
