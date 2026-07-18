@@ -149,6 +149,10 @@
     font-size:1rem; cursor:pointer; box-shadow:0 4px 14px rgba(37,56,51,0.25);
   }
   .primary-btn:active{ transform:scale(0.96); }
+  .link-btn{
+    background:none; border:none; color:var(--muted); font-size:0.82rem; text-decoration:underline;
+    cursor:pointer; margin-top:12px; padding:6px;
+  }
 
   /* ---------- overlay / modal ---------- */
   .overlay{
@@ -256,6 +260,7 @@
     <h2>Nessun brano ancora</h2>
     <p>Aggiungi i brani già scaricati sul telefono: resteranno salvati in questa app, anche senza connessione.</p>
     <button class="primary-btn" id="btnAddFirstSongs">Aggiungi brani</button>
+    <button class="link-btn" id="btnAddFirstSongsAll">Non vedi i tuoi brani? Mostra tutti i file</button>
   </div>
 
   <!-- PLAYER -->
@@ -315,6 +320,7 @@
     </div>
     <div class="page-body">
       <button class="add-btn" id="btnAddMoreSongs">+ Aggiungi altri brani</button>
+      <button class="link-btn" id="btnAddMoreSongsAll">Non vedi i tuoi brani? Mostra tutti i file</button>
       <div id="libraryList"></div>
     </div>
   </div>
@@ -353,7 +359,8 @@
   </div>
 
   <div class="toast" id="toast"></div>
-  <input type="file" id="fileInput" accept="audio/*" multiple style="display:none;">
+  <input type="file" id="fileInput" accept="audio/*,.mp3,.m4a,.aac,.wav,.flac,.ogg,.wma,.mp4,.caf,.aiff" multiple style="display:none;">
+  <input type="file" id="fileInputAll" multiple style="display:none;">
 </div>
 
 <script>
@@ -596,19 +603,32 @@
   });
 
   /* ================= Adding songs ================= */
+  const fileInputAll = $("fileInputAll");
+  const AUDIO_EXT = [".mp3",".m4a",".aac",".wav",".flac",".ogg",".wma",".mp4",".caf",".aiff",".aif",".opus",".3gp"];
   let fileInputTarget = "first"; // "first" | "more"
   $("btnAddFirstSongs").addEventListener("click", ()=>{ fileInputTarget="first"; fileInput.click(); });
   $("btnAddMoreSongs").addEventListener("click", ()=>{ fileInputTarget="more"; fileInput.click(); });
+  $("btnAddFirstSongsAll").addEventListener("click", ()=>{ fileInputTarget="first"; fileInputAll.click(); });
+  $("btnAddMoreSongsAll").addEventListener("click", ()=>{ fileInputTarget="more"; fileInputAll.click(); });
 
-  fileInput.addEventListener("change", async (e)=>{
-    const files = Array.from(e.target.files || []);
+  async function handleFilesChosen(e, filterByExtension){
+    let files = Array.from(e.target.files || []);
     if(files.length === 0) return;
+    if(filterByExtension){
+      const total = files.length;
+      files = files.filter(f => AUDIO_EXT.some(ext => f.name.toLowerCase().endsWith(ext)));
+      const skipped = total - files.length;
+      if(skipped > 0){
+        showToast(skipped + " file ignorati (formato non audio)");
+      }
+      if(files.length === 0) return;
+    }
     const existing = await getAllSongs();
     let order = existing.length ? Math.max(...existing.map(s=>s.order)) + 1 : 0;
     for(const f of files){
       await addSong(f, order++);
     }
-    fileInput.value = "";
+    e.target.value = "";
     playlist = await getAllSongs();
     refreshUI();
     renderLibraryList();
@@ -616,7 +636,10 @@
     if(fileInputTarget === "first" && currentIndex === -1 && playlist.length > 0){
       loadTrack(0, false);
     }
-  });
+  }
+
+  fileInput.addEventListener("change", (e)=> handleFilesChosen(e, false));
+  fileInputAll.addEventListener("change", (e)=> handleFilesChosen(e, true));
 
   /* ================= Library page ================= */
   const libraryPage = $("libraryPage");
