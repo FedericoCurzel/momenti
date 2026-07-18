@@ -1,0 +1,14 @@
+{
+  "name": "Momenti Sonori",
+  "short_name": "Momenti Sonori",
+  "description": "Riproduttore di playlist per sessioni di musicoterapia, con questionario post-ascolto.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#EFEAE0",
+  "theme_color": "#2C4A47",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
